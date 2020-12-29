@@ -88,6 +88,7 @@ func createPipeline() (*gst.Pipeline, error) {
 			// There are convenience wrappers for building buffers directly from byte sequences as
 			// well.
 			buf.Map(gst.MapWrite).WriteData(pixels)
+			defer buf.Unmap()
 
 			// Push the buffer onto the pipeline.
 			self.PushBuffer(buf)

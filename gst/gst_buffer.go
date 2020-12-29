@@ -35,7 +35,8 @@ func GetMaxBufferMemory() uint64 { return uint64(C.gst_buffer_get_max_memory()) 
 
 // Buffer is a go representation of a GstBuffer.
 type Buffer struct {
-	ptr *C.GstBuffer
+	ptr     *C.GstBuffer
+	mapInfo *MapInfo
 }
 
 // NewEmptyBuffer returns a new empty buffer.
@@ -144,6 +145,10 @@ func (b *Buffer) Reader() io.Reader { return bytes.NewBuffer(b.Bytes()) }
 // Bytes returns a byte slice of the data inside this buffer.
 func (b *Buffer) Bytes() []byte {
 	mapInfo := b.Map(MapRead)
+	if mapInfo == nil {
+		return nil
+	}
+	defer b.Unmap()
 	return mapInfo.Bytes()
 }
 
@@ -612,20 +617,29 @@ func (b *Buffer) IterateMetaFiltered(meta *Meta, apiType glib.Type) *Meta {
 	return wrapMeta(C.gst_buffer_iterate_meta_filtered(b.Instance(), (*C.gpointer)(&ptr), C.GType(apiType)))
 }
 
-// Map will map the data inside this buffer.
+// Map will map the data inside this buffer. This function can return nil if the memory is not read or writable.
+//
+// Unmap the Buffer after usage.
 func (b *Buffer) Map(flags MapFlags) *MapInfo {
-	var mapInfo C.GstMapInfo
+	mapInfo := C.malloc(C.sizeof_GstMapInfo)
 	C.gst_buffer_map(
 		(*C.GstBuffer)(b.Instance()),
-		(*C.GstMapInfo)(unsafe.Pointer(&mapInfo)),
+		(*C.GstMapInfo)(mapInfo),
 		C.GstMapFlags(flags),
 	)
-	return wrapMapInfo(&mapInfo, func() {
-		// This may not be necesesary
-		// if gobool(C.isBuffer(b.Instance())) {
-		// 	C.gst_buffer_unmap(b.Instance(), (*C.GstMapInfo)(unsafe.Pointer(&mapInfo)))
-		// }
-	})
+	if mapInfo == C.NULL {
+		return nil
+	}
+	b.mapInfo = wrapMapInfo((*C.GstMapInfo)(mapInfo))
+	return b.mapInfo
+}
+
+// Unmap will unmap the data inside this memory. Use this after calling Map on the buffer.
+func (b *Buffer) Unmap() {
+	if b.mapInfo == nil {
+		return
+	}
+	C.gst_buffer_unmap(b.Instance(), (*C.GstMapInfo)(b.mapInfo.Instance()))
 }
 
 // MapRange maps the info of length merged memory blocks starting at idx in buffer.
@@ -636,18 +650,21 @@ func (b *Buffer) Map(flags MapFlags) *MapInfo {
 // When the buffer is writable but the memory isn't, a writable copy will automatically be
 // created and returned. The readonly copy of the buffer memory will then also be replaced with this writable copy.
 //
-// Unmap after usage.
+// Unmap the Buffer after usage.
 func (b *Buffer) MapRange(idx uint, length int, flags MapFlags) *MapInfo {
-	var mapInfo C.GstMapInfo
+	var mapInfo *C.GstMapInfo
 	C.gst_buffer_map_range(
 		(*C.GstBuffer)(b.Instance()),
 		C.guint(idx), C.gint(length),
-		(*C.GstMapInfo)(unsafe.Pointer(&mapInfo)),
+		(*C.GstMapInfo)(unsafe.Pointer(mapInfo)),
 		C.GstMapFlags(flags),
 	)
-	return wrapMapInfo(&mapInfo, func() {
-		C.gst_buffer_unmap(b.Instance(), (*C.GstMapInfo)(unsafe.Pointer(&mapInfo)))
-	})
+	if mapInfo == nil {
+		return nil
+	}
+	gomapinfo := wrapMapInfo(mapInfo)
+	b.mapInfo = gomapinfo
+	return gomapinfo
 }
 
 // Memset fills buf with size bytes with val starting from offset. It returns the
