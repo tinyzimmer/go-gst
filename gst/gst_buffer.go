@@ -650,19 +650,18 @@ func (b *Buffer) Unmap() {
 //
 // Unmap the Buffer after usage.
 func (b *Buffer) MapRange(idx uint, length int, flags MapFlags) *MapInfo {
-	var mapInfo *C.GstMapInfo
+	mapInfo := C.malloc(C.sizeof_GstMapInfo)
 	C.gst_buffer_map_range(
 		(*C.GstBuffer)(b.Instance()),
 		C.guint(idx), C.gint(length),
-		(*C.GstMapInfo)(unsafe.Pointer(mapInfo)),
+		(*C.GstMapInfo)(mapInfo),
 		C.GstMapFlags(flags),
 	)
-	if mapInfo == nil {
+	if mapInfo == C.NULL {
 		return nil
 	}
-	gomapinfo := wrapMapInfo(mapInfo)
-	b.mapInfo = gomapinfo
-	return gomapinfo
+	b.mapInfo = wrapMapInfo((*C.GstMapInfo)(mapInfo))
+	return b.mapInfo
 }
 
 // Memset fills buf with size bytes with val starting from offset. It returns the
