@@ -75,11 +75,9 @@ func NewBufferAllocate(alloc *Allocator, params *AllocationParams, size int64) *
 
 // NewBufferFromBytes returns a new buffer from the given byte slice.
 func NewBufferFromBytes(b []byte) *Buffer {
-	str := string(b)
-	p := unsafe.Pointer(C.CString(str))
-	// memory is freed by gstreamer after building the new buffer
-	buf := C.gst_buffer_new_wrapped((C.gpointer)(p), C.gsize(len(str)))
-	return wrapBuffer(buf)
+	gbytes := C.g_bytes_new((C.gconstpointer)(unsafe.Pointer(&b[0])), C.gsize(len(b)))
+	defer C.g_bytes_unref(gbytes) // gstreamer takes another ref so we don't need ours after returning
+	return wrapBuffer(C.gst_buffer_new_wrapped_bytes(gbytes))
 }
 
 // NewBufferFromReader returns a new buffer from the given io.Reader.
