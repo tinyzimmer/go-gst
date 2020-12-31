@@ -564,7 +564,9 @@ func (b *Buffer) IterateMetaFiltered(meta *Meta, apiType glib.Type) *Meta {
 }
 
 // Map will map the data inside this buffer. This function can return nil if the memory is not read or writable.
-// It is safe to call this function multiple times on a single Buffer.
+// It is safe to call this function multiple times on a single Buffer, however it will retain the flags
+// used when mapping the first time. To change between read and write access first unmap and then remap the
+// buffer with the appropriate flags, or map initially with both read/write access.
 //
 // Unmap the Buffer after usage.
 func (b *Buffer) Map(flags MapFlags) *MapInfo {
