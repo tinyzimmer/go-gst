@@ -518,5 +518,4 @@ func (e *Element) GetRequestPad(name string) *Pad {
 // ReleaseRequestPad releases request pad
 func (e *Element) ReleaseRequestPad(pad *Pad) {
        C.gst_element_release_request_pad(e.Instance(), pad.Instance())
-       pad = nil
 }
